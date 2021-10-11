@@ -20,9 +20,14 @@ func main() {
 		log.Fatal(errors.New("need at least two args"))
 	}
 
-	session, closer, err := sshost.NewSession(env, os.Args[1])
+	client, closer, err := env.NewClient(nil, os.Args[1])
 	defer closer.Close()
 
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	session, err := client.NewSession()
 	if err != nil {
 		log.Fatal(err)
 	}

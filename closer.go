@@ -48,6 +48,11 @@ func (stack *ClosableStack) Push(closers ...Closer) {
 	stack.closers = append(stack.closers, closers...)
 }
 
+// PushStack is like Push, except that it takes a CloseableStack as argument
+func (stack *ClosableStack) PushStack(other *ClosableStack) {
+	stack.Push(stack.closers...)
+}
+
 // Reset resets this stack to an empty state.
 // Waits until all calls to Close() have finished.
 //

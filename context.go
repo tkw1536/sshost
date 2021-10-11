@@ -6,6 +6,7 @@ import (
 	"os/user"
 
 	"github.com/tkw1536/sshost/reader"
+	"golang.org/x/crypto/ssh"
 )
 
 // Context represents a context to derive a Config from
@@ -75,7 +76,6 @@ var unsupportedConfigs = []string{
 	"PKCS11Provider",
 	// "PreferredAuthentications", // TODO: Support authentications properly!
 	"ProxyCommand",
-	"ProxyJump",
 	// "ProxyUseFdpass", // ProxyCommand is unsupported!
 	"PubkeyAcceptedAlgorithms",
 	// "PubkeyAuthentication", // TODO: Support authentication properly!
@@ -122,6 +122,28 @@ var unsupportedFlags = []string{
 	"VisualHostKey",
 }
 
+// NewClient creates a new ssh client for the provided alias
+func (ctx *Context) NewClient(proxy *ssh.Client, alias string) (*ssh.Client, *ClosableStack, error) {
+	profile, err := ctx.NewProfile(alias)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	conn, closers, err := profile.Dial(proxy)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	client, err := profile.Connect(conn)
+	if err != nil {
+		defer closers.Close()
+		return nil, nil, err
+	}
+
+	closers.Push(client)
+	return client, closers, err
+}
+
 // NewProfile gets a new profile for the environment
 func (ctx *Context) NewProfile(alias string) (profile *Profile, err error) {
 	cfg, err := ctx.NewConfig(alias)
@@ -136,6 +158,16 @@ func (ctx *Context) NewProfile(alias string) (profile *Profile, err error) {
 
 // NewConfig reads a new configuration for the specific alias from the configuration
 func (ctx Context) NewConfig(alias string) (cfg Config, err error) {
+	// Parse the alias from the string
+	host, err := ParseHost(alias)
+	if err != nil {
+		return cfg, err
+	}
+	alias = host.Host
+
+	// TODO: Accept all the other parts of the alias!
+
+	// read all the configs
 	cHostname, err := reader.Default(ctx.Reader, alias, "Hostname", alias)
 	if err != nil {
 		return cfg, err
@@ -216,6 +248,11 @@ func (ctx Context) NewConfig(alias string) (cfg Config, err error) {
 		return cfg, ErrUnsupportedConfig{Setting: "RekeyLimit", Value: cRekeyLimit, Specific: true}
 	}
 
+	cProxyJump, err := reader.StringSlice(ctx.Reader, alias, "ProxyJump", nil)
+	if err != nil {
+		return cfg, err
+	}
+
 	// check for unsupported flags (options that must be "no")
 	for _, setting := range unsupportedFlags {
 		value, err := reader.YesNo(ctx.Reader, alias, setting, false)
@@ -238,7 +275,7 @@ func (ctx Context) NewConfig(alias string) (cfg Config, err error) {
 		}
 	}
 
-	return Config{
+	cfg = Config{
 		AddressFamily:       AddressFamily(cAddressFamily),
 		Ciphers:             cCiphers,
 		Compression:         cCompression,
@@ -249,12 +286,24 @@ func (ctx Context) NewConfig(alias string) (cfg Config, err error) {
 		IdentityAgent:       cIdentityAgent,
 		KexAlgorithms:       cKexAlgorithms,
 		MACs:                cMACs,
-		Port:                uint32(cPort),
+		ProxyJump:           cProxyJump,
+		Port:                uint16(cPort),
 		RekeyLimit:          cRekeyLimit,
 		ServerAliveCountMax: cServerAliveCountMax,
 		ServerAliveInterval: cServerAliveInterval,
 		Username:            cUsername,
-	}, nil
+	}
+
+	// overwrite from the inline specification
+	// TODO: Move this into a seperate function?
+	if host.Port != 0 {
+		cfg.Port = host.Port
+	}
+	if host.User != "" {
+		cfg.Username = host.User
+	}
+
+	return cfg, nil
 }
 
 // ErrUnsupportedConfig represents an unsupported configuration setting

@@ -18,7 +18,8 @@ type Config struct {
 	IdentityAgent       string
 	KexAlgorithms       []string
 	MACs                []string
-	Port                uint32 // TODO: want uint16
+	ProxyJump           []string
+	Port                uint16
 	RekeyLimit          string // TODO: Proper datatype
 	ServerAliveCountMax uint64
 	ServerAliveInterval time.Duration
@@ -78,6 +79,11 @@ func (cfg *Config) Validate(strict bool) (err error) {
 	}
 	if err := filterSliceField(&cfg.MACs, strict, "MACs", knownMACs); err != nil {
 		return err
+	}
+	for _, pj := range cfg.ProxyJump {
+		if !ValidHost(pj) {
+			return NewErrField(nil, "ProxyJump")
+		}
 	}
 	if cfg.Port == 0 || cfg.Port >= 65535 {
 		return NewErrField(nil, "Port")

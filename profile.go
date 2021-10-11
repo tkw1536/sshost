@@ -40,8 +40,28 @@ func (profile *Profile) GetConfig() (Config, error) {
 	return profile.config, nil
 }
 
-// Dial creates a new net.Connection to host representing this profile
-func (profile *Profile) Dial() (net.Conn, *ClosableStack, error) {
+// DialFrom connects to the given profile.
+//
+// Proxy indiciates an ssh proxy to dial the connection from.
+// When proxy is nil, does not use a proxy.
+func (profile *Profile) Dial(proxy *ssh.Client) (net.Conn, *ClosableStack, error) {
+	// create a stack and current hop to use for the connection!
+	stack := NewClosableStack()
+	hop := proxy
+
+	// iterate over all the hops
+	var err error
+	var jumpStack *ClosableStack
+	for _, jumpHost := range profile.config.ProxyJump {
+		hop, jumpStack, err = profile.env.NewClient(hop, jumpHost)
+		stack.PushStack(jumpStack)
+		if err != nil {
+			defer stack.Close()
+			return nil, nil, err
+		}
+	}
+
+	// determine the parameters for the final "real" hop
 	cfg, err := profile.GetConfig()
 	if err != nil {
 		return nil, nil, err
@@ -51,13 +71,24 @@ func (profile *Profile) Dial() (net.Conn, *ClosableStack, error) {
 	if network == "" {
 		return nil, nil, ErrUnknownAddressFamily
 	}
+	address := fmt.Sprintf("%s:%d", cfg.Hostname, cfg.Port)
 
-	conn, err := net.DialTimeout(network, fmt.Sprintf("%s:%d", cfg.Hostname, cfg.Port), cfg.ConnectTimeout)
+	// establish the connection from the final hop to the machine itself
+	// do this either via the real network, or via the existing client
+	var conn net.Conn
+	if hop == nil {
+		conn, err = net.DialTimeout(network, address, cfg.ConnectTimeout)
+	} else {
+		conn, err = hop.Dial(network, address)
+	}
+
 	if err != nil {
+		defer stack.Close()
 		return nil, nil, err
 	}
 
-	return conn, NewClosableStack(conn), nil
+	stack.Push(conn)
+	return conn, stack, nil
 }
 
 // Config creates a new ssh configuration to use for a connection
@@ -102,7 +133,7 @@ func (profile Profile) Config() (*ssh.ClientConfig, error) {
 }
 
 // Connect connects to the provided host using the given connection.
-func (profile Profile) Connect(conn net.Conn) (*ssh.Session, error) {
+func (profile Profile) Connect(conn net.Conn) (*ssh.Client, error) {
 	config, err := profile.Config()
 	if err != nil {
 		return nil, err
@@ -113,6 +144,5 @@ func (profile Profile) Connect(conn net.Conn) (*ssh.Session, error) {
 		return nil, err
 	}
 
-	client := ssh.NewClient(c, chans, reqs)
-	return client.NewSession()
+	return ssh.NewClient(c, chans, reqs), nil
 }
