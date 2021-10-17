@@ -1,34 +1,8 @@
-package sshost
+package closer
 
-import (
-	"io"
-	"sync"
-)
-
-// Closer is an alias for io.Closer.
-type Closer = io.Closer
-
-type closerFunc func() error
-
-func (c closerFunc) Close() error {
-	return c()
-}
-
-// NewCloser creates a new Closer from a function.
-func NewCloser(close func() error) Closer {
-	return closerFunc(close)
-}
-
-// CloseableStack is a stack-like data structure that contains multiple internal Closers.
-// It is safe to be used concurrently by multiple goroutines.
-type ClosableStack struct {
-	m       sync.RWMutex
-	closers []Closer
-}
-
-// NewClosable stack creates a new CloseableStack
-func NewClosableStack(closers ...Closer) *ClosableStack {
-	stack := &ClosableStack{}
+// NewStack creates a new stack with the provided closers
+func NewStack(closers ...Closer) *Stack {
+	stack := &Stack{}
 	stack.Push(closers...)
 	return stack
 }
@@ -37,7 +11,7 @@ func NewClosableStack(closers ...Closer) *ClosableStack {
 // stack may not be nil.
 //
 // If a current call to Close() is in progress, blocks until such a call is finished.
-func (stack *ClosableStack) Push(closers ...Closer) {
+func (stack *Stack) Push(closers ...Closer) {
 	if stack == nil {
 		panic("CloseableStack.Push: stack is nil")
 	}
@@ -48,8 +22,8 @@ func (stack *ClosableStack) Push(closers ...Closer) {
 	stack.closers = append(stack.closers, closers...)
 }
 
-// PushStack is like Push, except that it takes a CloseableStack as argument
-func (stack *ClosableStack) PushStack(other *ClosableStack) {
+// PushStack is like Push, except that it takes a Stack as argument
+func (stack *Stack) PushStack(other *Stack) {
 	stack.Push(stack.closers...)
 }
 
@@ -57,7 +31,7 @@ func (stack *ClosableStack) PushStack(other *ClosableStack) {
 // Waits until all calls to Close() have finished.
 //
 // When stack is nil, does nothing.
-func (stack *ClosableStack) Reset() {
+func (stack *Stack) Reset() {
 	if stack == nil {
 		return
 	}
@@ -75,7 +49,7 @@ func (stack *ClosableStack) Reset() {
 //
 // The implementation ensures that all closers are called, even if one panics.
 // If such a panic occurs the panic will not be recovered.
-func (stack *ClosableStack) Close() (err error) {
+func (stack *Stack) Close() (err error) {
 	if stack == nil {
 		return nil
 	}

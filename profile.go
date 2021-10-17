@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/tkw1536/sshost/pkg/closer"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -51,7 +52,7 @@ var ErrContextClosed = errors.New("Profile.Dial: Context was closed")
 //
 // Proxy indiciates an ssh proxy to dial the connection from.
 // When proxy is nil, does not use a proxy.
-func (profile *Profile) Dial(proxy *ssh.Client, ctx context.Context) (net.Conn, *ClosableStack, error) {
+func (profile *Profile) Dial(proxy *ssh.Client, ctx context.Context) (net.Conn, *closer.Stack, error) {
 	// shortcut: if the context is already closed, bail out immediatly!
 	if ctx.Err() != nil {
 		return nil, nil, ErrContextClosed
@@ -59,7 +60,7 @@ func (profile *Profile) Dial(proxy *ssh.Client, ctx context.Context) (net.Conn, 
 
 	// create a stack and current connection
 	// used to establish the connection and register all the closers!
-	stack := NewClosableStack()
+	stack := closer.NewStack()
 	hop := proxy
 
 	// keep track of the current connection attempt
@@ -78,7 +79,7 @@ func (profile *Profile) Dial(proxy *ssh.Client, ctx context.Context) (net.Conn, 
 
 	// iterate over all the hops
 	var err error
-	var jumpStack *ClosableStack
+	var jumpStack *closer.Stack
 	for _, jumpHost := range profile.config.ProxyJump {
 		if atomic.LoadUint32(&cancelDial) == 0 {
 			hop, jumpStack, err = profile.env.NewClient(hop, jumpHost, ctx)

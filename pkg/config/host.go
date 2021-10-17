@@ -1,12 +1,10 @@
-package sshost
+package config
 
 import (
 	"errors"
 	"strconv"
 	"strings"
 )
-
-// TODO: Move this into a util package
 
 // Host represents a host connection profile.
 // It is parsed from a simple URL, see ParseHost.

@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/user"
 
-	"github.com/tkw1536/sshost/reader"
+	"github.com/tkw1536/sshost/pkg/closer"
+	"github.com/tkw1536/sshost/pkg/config"
+	"github.com/tkw1536/sshost/pkg/reader"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -127,7 +129,7 @@ var unsupportedFlags = []string{
 // See also DialContext and connect.
 //
 // The provided context is only used during the dialing phase, if the context is canceled after the context phase, it has no effect.
-func (env *Environment) NewClient(proxy *ssh.Client, alias string, ctx context.Context) (*ssh.Client, *ClosableStack, error) {
+func (env *Environment) NewClient(proxy *ssh.Client, alias string, ctx context.Context) (*ssh.Client, *closer.Stack, error) {
 	profile, err := env.NewProfile(alias)
 	if err != nil {
 		return nil, nil, err
@@ -161,7 +163,7 @@ func (env *Environment) NewProfile(alias string) (profile *Profile, err error) {
 }
 
 // NewConfig reads a new configuration for the specific alias from the configuration
-func (env Environment) NewConfig(alias string) (cfg Config, err error) {
+func (env Environment) NewConfig(alias string) (cfg config.Config, err error) {
 	// Parse the alias from the string
 	host, err := ParseHost(alias)
 	if err != nil {

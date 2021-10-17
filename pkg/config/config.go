@@ -1,4 +1,7 @@
-package sshost
+// Package config contains Config and related datastructures.
+//
+// All types in this configuration are considered stateless.
+package config
 
 import (
 	"errors"
@@ -6,7 +9,7 @@ import (
 	"time"
 )
 
-// Config is a configuration for a single host
+// Config represents a configuration for a single host
 type Config struct {
 	AddressFamily       AddressFamily
 	Ciphers             []string
@@ -172,35 +175,3 @@ func (err ErrField) Unwrap() error {
 func (err ErrField) Error() string {
 	return fmt.Sprintf("Field %q: %s", err.Field, err.error.Error())
 }
-
-// AddressFamily specifies which address family to use when connecting.
-type AddressFamily string
-
-const (
-	DefaultAddressFamily AddressFamily = "any"
-	IPv4AddressFamily    AddressFamily = "inet"
-	IPv6AddressFamily    AddressFamily = "inet6"
-)
-
-// Valid checks if the provided AddressFamily is valid
-func (a AddressFamily) Valid() bool {
-	return a == DefaultAddressFamily || a == IPv4AddressFamily || a == IPv6AddressFamily
-}
-
-// Network returns the network corresponding to this AddressFamily.
-// In case of an unknown AddressFamily, returns "".
-func (a AddressFamily) Network() string {
-	switch a {
-	case "", DefaultAddressFamily:
-		return "tcp"
-	case IPv4AddressFamily:
-		return "tcp4"
-	case IPv6AddressFamily:
-		return "tcp6"
-	default:
-		return ""
-	}
-}
-
-// ErrUnknownAddressFamily represents an unknown AddressFamily
-var ErrUnknownAddressFamily = errors.New("unknown AddressFamily")
