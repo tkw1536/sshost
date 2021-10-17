@@ -1,6 +1,7 @@
 package sshost
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/user"
@@ -9,8 +10,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Context represents a context to derive a Config from
-type Context struct {
+// Environment represents a system environment to derive a Config from
+type Environment struct {
 	Reader reader.Reader
 
 	Strict bool
@@ -19,13 +20,13 @@ type Context struct {
 	Variables       func(name string) string
 }
 
-func NewDefaultContext() (*Context, error) {
+func NewDefaultEnvironment() (*Environment, error) {
 	user, err := user.Current()
 	if err != nil {
 		return nil, err
 	}
 
-	return &Context{
+	return &Environment{
 		Reader:          reader.NewDefaultReader(),
 		DefaultUsername: user.Username,
 		Variables:       os.Getenv,
@@ -33,11 +34,11 @@ func NewDefaultContext() (*Context, error) {
 }
 
 // getenv returns ctx.Variables, protected against Variables being nil
-func (ctx *Context) getenv(name string) string {
-	if ctx.Variables == nil {
+func (env Environment) getenv(name string) string {
+	if env.Variables == nil {
 		return ""
 	}
-	return ctx.Variables(name)
+	return env.Variables(name)
 }
 
 // list of security-critical unsupported configs
@@ -122,14 +123,17 @@ var unsupportedFlags = []string{
 	"VisualHostKey",
 }
 
-// NewClient creates a new ssh client for the provided alias
-func (ctx *Context) NewClient(proxy *ssh.Client, alias string) (*ssh.Client, *ClosableStack, error) {
-	profile, err := ctx.NewProfile(alias)
+// NewClient creates a new client.
+// See also DialContext and connect.
+//
+// The provided context is only used during the dialing phase, if the context is canceled after the context phase, it has no effect.
+func (env *Environment) NewClient(proxy *ssh.Client, alias string, ctx context.Context) (*ssh.Client, *ClosableStack, error) {
+	profile, err := env.NewProfile(alias)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	conn, closers, err := profile.Dial(proxy)
+	conn, closers, err := profile.Dial(proxy, ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -145,19 +149,19 @@ func (ctx *Context) NewClient(proxy *ssh.Client, alias string) (*ssh.Client, *Cl
 }
 
 // NewProfile gets a new profile for the environment
-func (ctx *Context) NewProfile(alias string) (profile *Profile, err error) {
-	cfg, err := ctx.NewConfig(alias)
+func (env *Environment) NewProfile(alias string) (profile *Profile, err error) {
+	cfg, err := env.NewConfig(alias)
 	if err != nil {
 		return nil, err
 	}
 	return &Profile{
-		env:    ctx,
+		env:    env,
 		config: cfg,
 	}, nil
 }
 
 // NewConfig reads a new configuration for the specific alias from the configuration
-func (ctx Context) NewConfig(alias string) (cfg Config, err error) {
+func (env Environment) NewConfig(alias string) (cfg Config, err error) {
 	// Parse the alias from the string
 	host, err := ParseHost(alias)
 	if err != nil {
@@ -168,78 +172,78 @@ func (ctx Context) NewConfig(alias string) (cfg Config, err error) {
 	// TODO: Accept all the other parts of the alias!
 
 	// read all the configs
-	cHostname, err := reader.Default(ctx.Reader, alias, "Hostname", alias)
+	cHostname, err := reader.Default(env.Reader, alias, "Hostname", alias)
 	if err != nil {
 		return cfg, err
 	}
 
-	cPort, err := reader.Uint(ctx.Reader, alias, "Port", 10, 16, 22)
+	cPort, err := reader.Uint(env.Reader, alias, "Port", 10, 16, 22)
 	if err != nil {
 		return cfg, err
 	}
 
-	cUsername, err := reader.Default(ctx.Reader, alias, "User", ctx.DefaultUsername)
+	cUsername, err := reader.Default(env.Reader, alias, "User", env.DefaultUsername)
 	if err != nil {
 		return cfg, err
 	}
 
-	cIdentityAgent, err := reader.Default(ctx.Reader, alias, "IdentityAgent", "$SSH_AUTH_SOCK")
+	cIdentityAgent, err := reader.Default(env.Reader, alias, "IdentityAgent", "$SSH_AUTH_SOCK")
 	if err != nil {
 		return cfg, err
 	}
 
-	cAddressFamily, err := reader.Default(ctx.Reader, alias, "AddressFamily", string(DefaultAddressFamily))
+	cAddressFamily, err := reader.Default(env.Reader, alias, "AddressFamily", string(DefaultAddressFamily))
 	if err != nil {
 		return cfg, err
 	}
 
-	cCiphers, err := reader.StringSlice(ctx.Reader, alias, "Ciphers", nil)
+	cCiphers, err := reader.StringSlice(env.Reader, alias, "Ciphers", nil)
 	if err != nil {
 		return cfg, err
 	}
 
-	cHostKeyAlgorithms, err := reader.StringSlice(ctx.Reader, alias, "HostKeyAlgorithms", nil)
+	cHostKeyAlgorithms, err := reader.StringSlice(env.Reader, alias, "HostKeyAlgorithms", nil)
 	if err != nil {
 		return cfg, err
 	}
 
-	cCompression, err := reader.YesNo(ctx.Reader, alias, "Compression", false)
+	cCompression, err := reader.YesNo(env.Reader, alias, "Compression", false)
 	if err != nil {
 		return cfg, err
 	}
 
-	cConnectionAttempts, err := reader.Uint(ctx.Reader, alias, "ConnectionAttempts", 10, 64, 1)
+	cConnectionAttempts, err := reader.Uint(env.Reader, alias, "ConnectionAttempts", 10, 64, 1)
 	if err != nil {
 		return cfg, err
 	}
 
-	cConnectTimeout, err := reader.Seconds(ctx.Reader, alias, "ConnectTimeout", 0)
+	cConnectTimeout, err := reader.Seconds(env.Reader, alias, "ConnectTimeout", 0)
 	if err != nil {
 		return cfg, err
 	}
 
-	cKexAlgorithms, err := reader.StringSlice(ctx.Reader, alias, "KexAlgorithms", nil)
+	cKexAlgorithms, err := reader.StringSlice(env.Reader, alias, "KexAlgorithms", nil)
 	if err != nil {
 		return cfg, err
 	}
 
-	cMACs, err := reader.StringSlice(ctx.Reader, alias, "MACs", nil)
+	cMACs, err := reader.StringSlice(env.Reader, alias, "MACs", nil)
 	if err != nil {
 		return cfg, err
 	}
 
-	cServerAliveInterval, err := reader.Seconds(ctx.Reader, alias, "ServerAliveInterval", 0)
+	cServerAliveInterval, err := reader.Seconds(env.Reader, alias, "ServerAliveInterval", 0)
 	if err != nil {
 		return cfg, err
 	}
 
-	cServerAliveCountMax, err := reader.Uint(ctx.Reader, alias, "ServerAliveCountMax", 10, 64, 3)
+	cServerAliveCountMax, err := reader.Uint(env.Reader, alias, "ServerAliveCountMax", 10, 64, 3)
 	if err != nil {
 		return cfg, err
 	}
 
 	// TODO: Support cRekeyLimit properly!
-	cRekeyLimit, err := reader.Default(ctx.Reader, alias, "RekeyLimit", "default none")
+	cRekeyLimit, err := reader.Default(env.Reader, alias, "RekeyLimit", "default none")
 	if err != nil {
 		return cfg, err
 	}
@@ -248,14 +252,14 @@ func (ctx Context) NewConfig(alias string) (cfg Config, err error) {
 		return cfg, ErrUnsupportedConfig{Setting: "RekeyLimit", Value: cRekeyLimit, Specific: true}
 	}
 
-	cProxyJump, err := reader.StringSlice(ctx.Reader, alias, "ProxyJump", nil)
+	cProxyJump, err := reader.StringSlice(env.Reader, alias, "ProxyJump", nil)
 	if err != nil {
 		return cfg, err
 	}
 
 	// check for unsupported flags (options that must be "no")
 	for _, setting := range unsupportedFlags {
-		value, err := reader.YesNo(ctx.Reader, alias, setting, false)
+		value, err := reader.YesNo(env.Reader, alias, setting, false)
 		if err != nil {
 			return cfg, err
 		}
@@ -266,7 +270,7 @@ func (ctx Context) NewConfig(alias string) (cfg Config, err error) {
 
 	// check for unsupported configs
 	for _, setting := range unsupportedConfigs {
-		value, err := ctx.Reader.Get(alias, setting)
+		value, err := env.Reader.Get(alias, setting)
 		if err != nil {
 			return cfg, err
 		}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"os"
@@ -11,7 +12,7 @@ import (
 
 func main() {
 
-	env, err := sshost.NewDefaultContext()
+	env, err := sshost.NewDefaultEnvironment()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -20,7 +21,7 @@ func main() {
 		log.Fatal(errors.New("need at least two args"))
 	}
 
-	client, closer, err := env.NewClient(nil, os.Args[1])
+	client, closer, err := env.NewClient(nil, os.Args[1], context.Background())
 	defer closer.Close()
 
 	if err != nil {

@@ -1,9 +1,12 @@
 package sshost
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -11,7 +14,7 @@ import (
 
 // Configuration represents a connection to a single host
 type Profile struct {
-	env *Context
+	env *Environment
 
 	// configuration, accessed only with GetConfig()
 	config      Config
@@ -40,21 +43,50 @@ func (profile *Profile) GetConfig() (Config, error) {
 	return profile.config, nil
 }
 
-// DialFrom connects to the given profile.
+var ErrContextClosed = errors.New("Profile.Dial: Context was closed")
+
+// Dial creates a new net.Conn to the host behind the given profile.
+// When the profile contains a JumpHost, this might involve connecting to other ssh hosts.
+// If the context is cancelled, the connection to any existing ssh host is closed.
 //
 // Proxy indiciates an ssh proxy to dial the connection from.
 // When proxy is nil, does not use a proxy.
-func (profile *Profile) Dial(proxy *ssh.Client) (net.Conn, *ClosableStack, error) {
-	// create a stack and current hop to use for the connection!
+func (profile *Profile) Dial(proxy *ssh.Client, ctx context.Context) (net.Conn, *ClosableStack, error) {
+	// shortcut: if the context is already closed, bail out immediatly!
+	if ctx.Err() != nil {
+		return nil, nil, ErrContextClosed
+	}
+
+	// create a stack and current connection
+	// used to establish the connection and register all the closers!
 	stack := NewClosableStack()
 	hop := proxy
+
+	// keep track of the current connection attempt
+	// and close the stack at the end of the connection!
+	doneC := make(chan struct{})
+	defer close(doneC)
+	var cancelDial uint32 // non-zero when cancelled
+	go func() {
+		select {
+		case <-ctx.Done():
+			atomic.StoreUint32(&cancelDial, 1)
+			stack.Close()
+		case <-doneC: /* connection established */
+		}
+	}()
 
 	// iterate over all the hops
 	var err error
 	var jumpStack *ClosableStack
 	for _, jumpHost := range profile.config.ProxyJump {
-		hop, jumpStack, err = profile.env.NewClient(hop, jumpHost)
-		stack.PushStack(jumpStack)
+		if atomic.LoadUint32(&cancelDial) == 0 {
+			hop, jumpStack, err = profile.env.NewClient(hop, jumpHost, ctx)
+			stack.PushStack(jumpStack)
+		} else {
+			err = ErrContextClosed
+		}
+
 		if err != nil {
 			defer stack.Close()
 			return nil, nil, err
@@ -76,10 +108,14 @@ func (profile *Profile) Dial(proxy *ssh.Client) (net.Conn, *ClosableStack, error
 	// establish the connection from the final hop to the machine itself
 	// do this either via the real network, or via the existing client
 	var conn net.Conn
-	if hop == nil {
-		conn, err = net.DialTimeout(network, address, cfg.ConnectTimeout)
+	if atomic.LoadUint32(&cancelDial) == 0 {
+		if hop == nil {
+			conn, err = net.DialTimeout(network, address, cfg.ConnectTimeout)
+		} else {
+			conn, err = hop.Dial(network, address)
+		}
 	} else {
-		conn, err = hop.Dial(network, address)
+		err = ErrContextClosed
 	}
 
 	if err != nil {
