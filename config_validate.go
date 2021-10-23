@@ -1,8 +1,10 @@
-package config
+package sshost
 
 import (
 	"errors"
 	"fmt"
+
+	"github.com/tkw1536/sshost/pkg/host"
 )
 
 var knownExchangeAlgos = []string{
@@ -27,7 +29,7 @@ var knownCiphers = []string{
 	"3des-cbc",
 }
 
-// Validate validates the provided configuration and (where necessary) normalizes it.
+// Validate validates the provided configuration and normalizes it.
 // When validation fails, returns an error of type ErrField; otherwise err is nil.
 //
 // When strict is false, if no algorithms selected within the configuration are supported uses default algorithms instead.
@@ -60,7 +62,7 @@ func (cfg *Config) Validate(strict bool) (err error) {
 		return err
 	}
 	for _, pj := range cfg.ProxyJump {
-		if !ValidHost(pj) {
+		if !host.ValidHost(pj) {
 			return NewErrField(nil, "ProxyJump")
 		}
 	}

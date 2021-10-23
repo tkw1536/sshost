@@ -1,7 +1,4 @@
-// Package config contains Config and related datastructures.
-//
-// All types in this configuration are considered stateless.
-package config
+package sshost
 
 import (
 	"errors"
@@ -9,27 +6,53 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tkw1536/sshost/pkg/host"
 	"github.com/tkw1536/stringreader"
 )
 
-// Config represents a configuration for a single host
+// Config represents a configuration for a single host.
+//
+// To access expanded variables, use the corresponding .Expanded() methods of the profile!
 type Config struct {
-	AddressFamily       AddressFamily `config:"AddressFamily" type:"string"`
-	Ciphers             []string      `config:"Ciphers" type:"stringslice"`
-	Compression         bool          `config:"Compression" type:"yesno"`
-	ConnectionAttempts  uint64        `config:"ConnectionAttempts" type:"int"`
-	ConnectTimeout      time.Duration `config:"ConnectTimeout" type:"seconds"`
-	HostKeyAlgorithms   []string      `config:"HostKeyAlgorithms" type:"stringslice"`
-	Hostname            string        `config:"Hostname" type:"string"`
-	IdentityAgent       string        `config:"IdentityAgent" type:"string"`
-	KexAlgorithms       []string      `config:"KexAlgorithms" type:"stringslice"`
-	MACs                []string      `config:"MACs" type:"stringslice"`
-	ProxyJump           []string      `config:"ProxyJump" type:"stringslices"` // TODO: multi-slice
-	Port                uint16        `config:"Port" type:"uint"`
-	RekeyLimit          string        `config:"RekeyLimit" type:"string"` // TODO: Proper datatype
+	AddressFamily AddressFamily `config:"AddressFamily" type:"string"`
+	Hostname      string        `config:"Hostname" type:"string"`
+	Username      string        `config:"Username" type:"string"`
+	Port          uint16        `config:"Port" type:"uint"`
+
+	Ciphers       []string `config:"Ciphers" type:"stringslice"`
+	KexAlgorithms []string `config:"KexAlgorithms" type:"stringslice"`
+	MACs          []string `config:"MACs" type:"stringslice"`
+
+	Compression bool `config:"Compression" type:"yesno"`
+
+	ProxyJump []string `config:"ProxyJump" type:"stringslices"` // TODO: multi-slice
+
+	ConnectTimeout     time.Duration `config:"ConnectTimeout" type:"seconds"`
+	ConnectionAttempts uint64        `config:"ConnectionAttempts" type:"int"`
+
+	HostKeyAlgorithms []string `config:"HostKeyAlgorithms" type:"stringslice"`
+
+	RekeyLimit string `config:"RekeyLimit" type:"string"` // TODO: Proper datatype
+
 	ServerAliveCountMax uint64        `config:"ServerAliveCountMax" type:"uint"`
 	ServerAliveInterval time.Duration `config:"ServerAliveInterval" type:"seconds"`
-	Username            string        `config:"Username" type:"string"`
+
+	// TODO: Parse & validate the below
+
+	PreferredAuthentications string `config:"PreferredAuthentications" type:"string"`
+
+	GSSAPIAuthentication             bool `config:"GSSAPIAuthentication" type:"yesno"`
+	HostbasedAuthentication          bool `config:"HostbasedAuthentication" type:"yesno"`
+	NoHostAuthenticationForLocalhost bool `config:"NoHostAuthenticationForLocalhost" type:"yesno"`
+
+	IdentitiesOnly bool     `config:"IdentitiesOnly" type:"yesno"`
+	IdentityAgent  string   `config:"IdentityAgent" type:"string"`
+	IdentityFile   []string `config:"IdentityFile" type:"stringslice"`
+
+	KbdInteractiveAuthentication bool `config:"KbdInteractiveAuthentication" type:"yesno"`
+
+	NumberOfPasswordPrompts int  `config:"NumberOfPasswordPrompts" type:"int"`
+	PasswordAuthentication  bool `config:"PasswordAuthentication" type:"yesno"`
 }
 
 // Defaults contains defaults for generating an environment
@@ -77,35 +100,63 @@ func (dflts Defaults) Data() (data stringreader.ParsingData) {
 	data.SetLocal("ProxyJump", "default", nil)
 	data.SetLocal("ProxyJump", "skip", "none")
 
+	data.SetLocal("PreferredAuthentications", "default", "gssapi-with-mic,hostbased,publickey,keyboard-interactive,password")
+
+	data.SetLocal("GSSAPIAuthentication", "default", false)
+
+	data.SetLocal("HostbasedAuthentication", "default", false)
+
+	data.SetLocal("NoHostAuthenticationForLocalhost", "default", false)
+
+	data.SetLocal("IdentitiesOnly", "default", false)
+
+	data.SetLocal("IdentityAgent", "default", "SSH_AUTH_SOCK")
+
+	data.SetLocal("IdentityFile", "default", []string{
+		"~/.ssh/id_dsa",
+		"~/.ssh/id_ecdsa",
+		"~/.ssh/id_ecdsa_sk",
+		"~/.ssh/id_ed25519",
+		"~/.ssh/id_ed25519_sk",
+		"~/.ssh/id_rsa",
+	})
+
+	data.SetLocal("KbdInteractiveAuthentication", "default", true)
+
+	data.SetLocal("NumberOfPasswordPrompts", "default", 3)
+	data.SetLocal("NumberOfPasswordPrompts", "base", 10)
+	data.SetLocal("NumberOfPasswordPrompts", "bits", 64)
+
+	data.SetLocal("PasswordAuthentication", "default", true)
+
 	return
 }
 
 // NewConfig reads a configuration from the provided source.
-func NewConfig(source stringreader.Source, host Host, dflts Defaults) (cfg Config, err error) {
+func NewConfig(source stringreader.Source, host host.Host, dflts Defaults) (cfg Config, err error) {
 	if err = checkUnsupportedConfig(source); err != nil {
 		return
 	}
 	if err = configMarshal.UnmarshalContext(&cfg, source, dflts.Data()); err != nil {
 		return
 	}
-	if err = host.UpdateConfig(&cfg); err != nil {
+	if err = cfg.UpdateHost(host); err != nil {
 		return
 	}
 	return
 }
 
-// UpdateConfig updates cfg with configuration values from this host.
-// Always returns nil.
-func (h Host) UpdateConfig(cfg *Config) error {
+// UpdateFromHost updates config with data from the provided host
+func (cfg *Config) UpdateHost(host host.Host) error {
 	if cfg.Hostname == "" {
-		cfg.Hostname = h.Host
+		cfg.Hostname = host.Host
 	}
 
-	if h.User != "" {
-		cfg.Username = h.User
+	if host.User != "" {
+		cfg.Username = host.User
 	}
-	if h.Port != 0 {
-		cfg.Port = h.Port
+	if host.Port != 0 {
+		cfg.Port = host.Port
 	}
 	return nil
 }

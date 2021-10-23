@@ -1,4 +1,4 @@
-package config
+package sshost
 
 import (
 	"fmt"
@@ -28,16 +28,12 @@ var unsupportedConfigs = []string{
 	// "GlobalKnownHostsFile", // TODO: Support me!
 	// "HostbasedAcceptedAlgorithms",
 	"HostKeyAlias",
-	// "IdentityFile", // TODO: Support me!
 	"IPQoS",
-	// "KbdInteractiveAuthentication", // TODO: Support me!
 	"KbdInteractiveDevices",
 	"KnownHostsCommand",
 	"LocalCommand",
 	"LocalForward",
 	// "LogLevel", // TODO: Can we safely ignore this?
-	// "NumberOfPasswordPrompts", // TODO: Implement me!
-	// "PasswordAuthentication", // TODO: Implement me!
 	"PermitRemoteOpen",
 	"PKCS11Provider",
 	// "PreferredAuthentications", // TODO: Support authentications properly!
@@ -78,7 +74,6 @@ var unsupportedFlags = []string{
 	"GSSAPIDelegateCredentials",
 	"HashKnownHosts",
 	"HostbasedAuthentication",
-	"IdentitiesOnly",
 	"NoHostAuthenticationForLocalhost",
 	"PermitLocalCommand",
 	"StreamLocalBindUnlink",

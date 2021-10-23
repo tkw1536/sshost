@@ -1,4 +1,4 @@
-package config
+package sshost
 
 import (
 	"github.com/kevinburke/ssh_config"

@@ -1,4 +1,4 @@
-package config
+package host
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Host represents a host connection profile.
+// Host represents a hostname or alias to connect to.
 // It is parsed from a simple URL, see ParseHost.
 type Host struct {
 	User string

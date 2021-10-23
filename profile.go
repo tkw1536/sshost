@@ -9,30 +9,29 @@ import (
 	"sync/atomic"
 
 	"github.com/tkw1536/sshost/pkg/closer"
-	"github.com/tkw1536/sshost/pkg/config"
+
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
-// Configuration represents a connection to a single host
+// Profile represents a connection to a single host
 type Profile struct {
 	env *Environment
 
 	// configuration, accessed only with GetConfig()
-	config      config.Config
+	config      Config
 	configError error
 	configValid sync.Once
 }
 
 // SetConfig sets the configuration for this Profile
-func (profile *Profile) SetConfig(config config.Config) {
+func (profile *Profile) SetConfig(config Config) {
 	profile.configValid = sync.Once{}
 	profile.config = config
 	profile.configError = nil
 }
 
 // GetConfig gets the configuration for the profile, and calls validate when needed
-func (profile *Profile) GetConfig() (config.Config, error) {
+func (profile *Profile) GetConfig() (Config, error) {
 	// run the validation once!
 	profile.configValid.Do(func() {
 		profile.configError = profile.config.Validate(profile.env.Strict)
@@ -40,7 +39,7 @@ func (profile *Profile) GetConfig() (config.Config, error) {
 
 	// check if the validation was ok
 	if profile.configError != nil {
-		return config.Config{}, profile.configError
+		return Config{}, profile.configError
 	}
 	return profile.config, nil
 }
@@ -103,7 +102,7 @@ func (profile *Profile) Dial(proxy *ssh.Client, ctx context.Context) (net.Conn, 
 
 	network := cfg.AddressFamily.Network()
 	if network == "" {
-		return nil, nil, config.ErrUnknownAddressFamily
+		return nil, nil, ErrUnknownAddressFamily
 	}
 	address := fmt.Sprintf("%s:%d", cfg.Hostname, cfg.Port)
 
@@ -150,21 +149,8 @@ func (profile Profile) Config() (*ssh.ClientConfig, error) {
 			KeyExchanges: cfg.KexAlgorithms,
 			MACs:         cfg.MACs,
 		},
-	}
 
-	// when configure, setup a connection for an identity agent!
-	identityAgent := cfg.IdentityAgent
-	switch {
-	case identityAgent != "" && identityAgent[0] == '$':
-		identityAgent = profile.env.getenv(identityAgent[1:])
-		fallthrough
-	case identityAgent != "none":
-		agentc, err := net.Dial("unix", identityAgent)
-		if err != nil {
-			return nil, err
-		}
-		client := agent.NewClient(agentc)
-		config.Auth = append(config.Auth, ssh.PublicKeysCallback(client.Signers))
+		Auth: profile.env.Auth.Methods(cfg.PreferredAuthentications, profile),
 	}
 
 	return config, nil

@@ -7,7 +7,7 @@ import (
 
 	"github.com/kevinburke/ssh_config"
 	"github.com/tkw1536/sshost/pkg/closer"
-	"github.com/tkw1536/sshost/pkg/config"
+	"github.com/tkw1536/sshost/pkg/host"
 	"github.com/tkw1536/stringreader"
 	"golang.org/x/crypto/ssh"
 )
@@ -26,7 +26,8 @@ type Environment struct {
 	Strict bool
 
 	// Defaults are the defaults for creating new profiles
-	Defaults config.Defaults
+	Defaults Defaults
+	Auth     AuthEnv
 
 	// Variables contains values of system environment variables
 	Variables func(name string) string
@@ -41,7 +42,7 @@ func NewDefaultEnvironment() (*Environment, error) {
 	return &Environment{
 		Settings: ssh_config.DefaultUserSettings,
 		Strict:   false,
-		Defaults: config.Defaults{
+		Defaults: Defaults{
 			Username: user.Username,
 		},
 		Variables: os.Getenv,
@@ -95,10 +96,10 @@ func (env *Environment) NewProfile(alias string) (profile *Profile, err error) {
 
 func (env Environment) source(alias string) stringreader.Source {
 	if env.Config != nil {
-		return config.NewConfigSource(env.Config, alias)
+		return NewConfigSource(env.Config, alias)
 	}
 	if env.Settings != nil {
-		return config.NewUserSettingsSource(env.Settings, alias)
+		return NewUserSettingsSource(env.Settings, alias)
 	}
 
 	panic("env.Source: env.settings and env.config are nil")
@@ -108,24 +109,21 @@ func (env Environment) source(alias string) stringreader.Source {
 //
 // alias may be a simple hostname or a more complex ssh uri.
 // See config.ParseHost for details.
-func (env Environment) NewConfig(alias string) (config.Config, error) {
+func (env Environment) NewConfig(alias string) (Config, error) {
 	// Parse the hostname
-	h, err := config.ParseHost(alias)
+	h, err := host.ParseHost(alias)
 	if err != nil {
-		return config.Config{}, err
+		return Config{}, err
 	}
 
 	// create a new configuration
 	src := env.source(h.Host)
-	cfg, err := config.NewConfig(src, h, env.Defaults)
+	cfg, err := NewConfig(src, h, env.Defaults)
 	if err != nil {
 		return cfg, err
 	}
 
-	// validate the configuration!
-	if err = cfg.Validate(env.Strict); err != nil {
-		return cfg, err
-	}
+	// TODO: Expand configuration!
 
 	return cfg, nil
 }
