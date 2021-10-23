@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/tkw1536/sshost/pkg/closer"
+	"github.com/tkw1536/sshost/pkg/config"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -18,20 +19,20 @@ type Profile struct {
 	env *Environment
 
 	// configuration, accessed only with GetConfig()
-	config      Config
+	config      config.Config
 	configError error
 	configValid sync.Once
 }
 
 // SetConfig sets the configuration for this Profile
-func (profile *Profile) SetConfig(config Config) {
+func (profile *Profile) SetConfig(config config.Config) {
 	profile.configValid = sync.Once{}
 	profile.config = config
 	profile.configError = nil
 }
 
 // GetConfig gets the configuration for the profile, and calls validate when needed
-func (profile *Profile) GetConfig() (Config, error) {
+func (profile *Profile) GetConfig() (config.Config, error) {
 	// run the validation once!
 	profile.configValid.Do(func() {
 		profile.configError = profile.config.Validate(profile.env.Strict)
@@ -39,7 +40,7 @@ func (profile *Profile) GetConfig() (Config, error) {
 
 	// check if the validation was ok
 	if profile.configError != nil {
-		return Config{}, profile.configError
+		return config.Config{}, profile.configError
 	}
 	return profile.config, nil
 }
@@ -102,7 +103,7 @@ func (profile *Profile) Dial(proxy *ssh.Client, ctx context.Context) (net.Conn, 
 
 	network := cfg.AddressFamily.Network()
 	if network == "" {
-		return nil, nil, ErrUnknownAddressFamily
+		return nil, nil, config.ErrUnknownAddressFamily
 	}
 	address := fmt.Sprintf("%s:%d", cfg.Hostname, cfg.Port)
 

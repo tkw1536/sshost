@@ -5,173 +5,203 @@ package config
 
 import (
 	"errors"
-	"fmt"
+	"strconv"
+	"strings"
 	"time"
+
+	"github.com/tkw1536/stringreader"
 )
 
 // Config represents a configuration for a single host
 type Config struct {
-	AddressFamily       AddressFamily
-	Ciphers             []string
-	Compression         bool
-	ConnectionAttempts  uint64
-	ConnectTimeout      time.Duration
-	HostKeyAlgorithms   []string
-	Hostname            string
-	IdentityAgent       string
-	KexAlgorithms       []string
-	MACs                []string
-	ProxyJump           []string
-	Port                uint16
-	RekeyLimit          string // TODO: Proper datatype
-	ServerAliveCountMax uint64
-	ServerAliveInterval time.Duration
-	Username            string
+	AddressFamily       AddressFamily `config:"AddressFamily" type:"string"`
+	Ciphers             []string      `config:"Ciphers" type:"stringslice"`
+	Compression         bool          `config:"Compression" type:"yesno"`
+	ConnectionAttempts  uint64        `config:"ConnectionAttempts" type:"int"`
+	ConnectTimeout      time.Duration `config:"ConnectTimeout" type:"seconds"`
+	HostKeyAlgorithms   []string      `config:"HostKeyAlgorithms" type:"stringslice"`
+	Hostname            string        `config:"Hostname" type:"string"`
+	IdentityAgent       string        `config:"IdentityAgent" type:"string"`
+	KexAlgorithms       []string      `config:"KexAlgorithms" type:"stringslice"`
+	MACs                []string      `config:"MACs" type:"stringslice"`
+	ProxyJump           []string      `config:"ProxyJump" type:"stringslices"` // TODO: multi-slice
+	Port                uint16        `config:"Port" type:"uint"`
+	RekeyLimit          string        `config:"RekeyLimit" type:"string"` // TODO: Proper datatype
+	ServerAliveCountMax uint64        `config:"ServerAliveCountMax" type:"uint"`
+	ServerAliveInterval time.Duration `config:"ServerAliveInterval" type:"seconds"`
+	Username            string        `config:"Username" type:"string"`
 }
 
-var knownExchangeAlgos = []string{
-	"diffie-hellman-group1-sha1",
-	"diffie-hellman-group14-sha1",
-	"ecdh-sha2-nistp256",
-	"ecdh-sha2-nistp384",
-	"ecdh-sha2-nistp521",
-	"curve25519-sha256@libssh.org",
-	"diffie-hellman-group-exchange-sha1",
-	"diffie-hellman-group-exchange-sha256",
-}
-var knownMACs = []string{
-	"hmac-sha2-256-etm@openssh.com", "hmac-sha2-256", "hmac-sha1", "hmac-sha1-96",
-}
-var knownCiphers = []string{
-	"aes128-ctr", "aes192-ctr", "aes256-ctr",
-	"aes128-gcm@openssh.com",
-	"chacha20-poly1305@openssh.com",
-	"arcfour256", "arcfour128", "arcfour",
-	"aes128-cbc",
-	"3des-cbc",
+// Defaults contains defaults for generating an environment
+type Defaults struct {
+	Username string
 }
 
-// Validate validates the provided configuration and (where necessary) normalizes it.
-// When validation fails, returns an error of type ErrField; otherwise err is nil.
-//
-// When strict is false, if no algorithms selected within the configuration are supported uses default algorithms instead.
-// When strict is true, an error is returned instead.
-func (cfg *Config) Validate(strict bool) (err error) {
-	if !cfg.AddressFamily.Valid() {
-		return NewErrField(nil, "AddressFamily")
+func (dflts Defaults) Data() (data stringreader.ParsingData) {
+	data.SetLocal("Hostname", "default", "")
+
+	data.SetLocal("Port", "default", 22)
+	data.SetLocal("Port", "base", 10)
+	data.SetLocal("Port", "bits", 16)
+
+	data.SetLocal("Username", "default", dflts.Username)
+
+	data.SetLocal("IdentityAgent", "default", "$SSH_AUTH_SOCK")
+
+	data.SetLocal("AddressFamily", "default", string(DefaultAddressFamily))
+
+	data.SetLocal("HostKeyAlgorithms", "default", nil)
+
+	data.SetLocal("Ciphers", "default", nil)
+
+	data.SetLocal("Compression", "default", false)
+
+	data.SetLocal("ConnectionAttempts", "default", 1)
+	data.SetLocal("ConnectionAttempts", "base", 10)
+	data.SetLocal("ConnectionAttempts", "bits", 64)
+
+	data.SetLocal("ConnectTimeout", "default", time.Second)
+
+	data.SetLocal("KexAlgorithms", "default", nil)
+
+	data.SetLocal("MACs", "default", nil)
+
+	data.SetLocal("ServerAliveInterval", "default", 0)
+
+	data.SetLocal("ServerAliveCountMax", "default", 3)
+	data.SetLocal("ServerAliveCountMax", "base", 10)
+	data.SetLocal("ServerAliveCountMax", "bits", 64)
+
+	data.SetLocal("RekeyLimit", "default", "default none")
+
+	data.SetLocal("ProxyJump", "default", nil)
+	data.SetLocal("ProxyJump", "skip", "none")
+
+	return
+}
+
+// NewConfig reads a configuration from the provided source.
+func NewConfig(source stringreader.Source, host Host, dflts Defaults) (cfg Config, err error) {
+	if err = checkUnsupportedConfig(source); err != nil {
+		return
 	}
-	if err := filterSliceField(&cfg.Ciphers, strict, "Ciphers", knownCiphers); err != nil {
-		return err
+	if err = configMarshal.UnmarshalContext(&cfg, source, dflts.Data()); err != nil {
+		return
 	}
-	if cfg.Compression {
-		return NewErrField(nil, "Compression")
-	}
-	if cfg.ConnectionAttempts != 1 {
-		return NewErrField(nil, "ConnectionAttempts")
-	}
-	// ConnectTimeout: no validation
-	if err := filterSliceField(&cfg.HostKeyAlgorithms, strict, "HostKeyAlgorithms", knownExchangeAlgos); err != nil {
-		return err
-	}
-	if cfg.Hostname == "" {
-		return NewErrField(errEmptyField, "Hostname")
-	}
-	// IdentityAgent: no validation
-	if err := filterSliceField(&cfg.KexAlgorithms, strict, "KexAlgorithms", knownExchangeAlgos); err != nil {
-		return err
-	}
-	if err := filterSliceField(&cfg.MACs, strict, "MACs", knownMACs); err != nil {
-		return err
-	}
-	for _, pj := range cfg.ProxyJump {
-		if !ValidHost(pj) {
-			return NewErrField(nil, "ProxyJump")
-		}
-	}
-	if cfg.Port == 0 || cfg.Port >= 65535 {
-		return NewErrField(nil, "Port")
-	}
-	if cfg.RekeyLimit != "default none" {
-		return NewErrField(nil, "RekeyLimit")
-	}
-	// ServerAliveCountMax: no validation
-	if cfg.ServerAliveInterval != 0 {
-		return NewErrField(errEmptyField, "ServerAliveInterval")
-	}
-	if cfg.Username == "" {
-		return NewErrField(errEmptyField, "Username")
+	if err = host.UpdateConfig(&cfg); err != nil {
+		return
 	}
 	return
 }
 
-// filterSliceField calls filterSlice, and ignores errors unless strict = True
-func filterSliceField(slice *[]string, strict bool, field string, valid []string) error {
-	var err error
-	*slice, err = filterSlice(*slice, valid)
-	if err != nil {
-		if strict {
-			return NewErrField(err, field)
-		}
-		*slice = nil
+// UpdateConfig updates cfg with configuration values from this host.
+// Always returns nil.
+func (h Host) UpdateConfig(cfg *Config) error {
+	if cfg.Hostname == "" {
+		cfg.Hostname = h.Host
+	}
+
+	if h.User != "" {
+		cfg.Username = h.User
+	}
+	if h.Port != 0 {
+		cfg.Port = h.Port
 	}
 	return nil
 }
 
-// filterSlice filters s by elements only in valid.
-// Does not re-allocate, and invalidates memory used by s.
-//
-// When slice is nil, never returns an error.
-// When slice becomes empty, returns errAllUnsupported
-func filterSlice(slice []string, valid []string) ([]string, error) {
-	// special case: 0-size slice or valid
-	if len(slice) == 0 || len(valid) == 0 {
-		return slice, nil
-	}
+var configMarshal stringreader.Marshal
 
-	// cache which elements exist
-	cache := make(map[string]struct{}, len(valid))
-	for _, v := range valid {
-		cache[v] = struct{}{}
-	}
+func init() {
+	configMarshal.NameTag = "config"
+	configMarshal.StrictNameTag = true
+	configMarshal.ParserTag = "type"
+	configMarshal.DefaultParser = ""
 
-	// filter s according to the cache
-	result := slice[:0]
-	for _, element := range slice {
-		if _, ok := cache[element]; ok {
-			result = append(result, element)
+	configMarshal.RegisterSingleParser("string", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+		if !ok || value == "" {
+			return ctx.Get("default"), nil
 		}
-	}
+		return value, nil
+	})
 
-	if len(result) == 0 {
-		return slice, errAllUnsupported
-	}
+	configMarshal.RegisterSingleParser("stringslice", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+		if !ok {
+			return ctx.Get("default"), nil
+		}
+		if value == "" {
+			return nil, nil
+		}
+		return strings.Split(value, ","), nil
+	})
+	configMarshal.RegisterMultiParser("stringslices", func(values []string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+		if !ok {
+			return ctx.Get("default"), nil
+		}
+		var results []string
+		for _, value := range values {
+			if value == "" {
+				continue
+			}
+			results = append(results, strings.Split(value, ",")...)
+		}
 
-	return result, nil
+		// remove skipped values!
+		skip := ctx.Get("skip")
+		if sskip, ok := skip.(string); ok {
+			nresults := results[:0]
+			for _, value := range results {
+				if value == sskip {
+					continue
+				}
+				nresults = append(nresults, value)
+			}
+			results = nresults
+		}
+
+		return results, nil
+	})
+
+	configMarshal.RegisterSingleParser("int", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+		if !ok || value == "" {
+			return ctx.Get("default"), nil
+		}
+		return strconv.ParseInt(value, ctx.Get("base").(int), ctx.Get("bits").(int))
+	})
+
+	configMarshal.RegisterSingleParser("uint", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+		if !ok || value == "" {
+			return ctx.Get("default"), nil
+		}
+		return strconv.ParseUint(value, ctx.Get("base").(int), ctx.Get("bits").(int))
+	})
+
+	configMarshal.RegisterSingleParser("seconds", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+		if !ok || value == "" {
+			return ctx.Get("default"), nil
+		}
+		s, err := strconv.ParseInt(value, 10, 64)
+		if err == nil {
+			return 0, err
+		}
+		return time.Duration(s) * time.Second, nil
+	})
+
+	configMarshal.RegisterSingleParser("yesno", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+		if !ok || value == "" {
+			return ctx.Get("default"), nil
+		}
+
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "yes":
+			return true, nil
+		case "no":
+			return false, nil
+		default:
+			return false, ErrNotABoolean
+		}
+	})
 }
 
-// ErrField represents an error for the provided field
-type ErrField struct {
-	error
-	Field string
-}
-
-// NewErrField creates a new ErrField for the given field and error.
-// When err is nil, picks a generic error.
-func NewErrField(err error, Field string) ErrField {
-	if err == nil {
-		err = errInvalidField
-	}
-	return ErrField{error: err, Field: Field}
-}
-
-var errInvalidField = errors.New("field value invalid")
-var errEmptyField = errors.New("field must be non-empty")
-var errAllUnsupported = errors.New("no value is supported")
-
-func (err ErrField) Unwrap() error {
-	return err.error
-}
-
-func (err ErrField) Error() string {
-	return fmt.Sprintf("Field %q: %s", err.Field, err.error.Error())
-}
+// ErrNotABoolean is returned when a value is not a boolean
+var ErrNotABoolean = errors.New("received non-boolean value")

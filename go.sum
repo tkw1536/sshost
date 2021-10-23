@@ -1,5 +1,9 @@
 github.com/kevinburke/ssh_config v1.1.0 h1:pH/t1WS9NzT8go394IqZeJTMHVm6Cr6ZJ6AQ+mdNo/o=
 github.com/kevinburke/ssh_config v1.1.0/go.mod h1:CT57kijsi8u/K/BOFA39wgDQJ9CxiF4nAY/ojJ6r6mM=
+github.com/tkw1536/stringreader v0.0.3 h1:/zLpgo0p3s0eSclzuD6vW+kTnS73YMV6lGGMlKglfvo=
+github.com/tkw1536/stringreader v0.0.3/go.mod h1:uJ1R7scZeK2U4N5dM0AJRTcmzag/Xoz+bccB4YIN69Q=
+github.com/tkw1536/stringreader v0.0.4 h1:8Ky+lJqKfbdQYQ7SafHAre6twNxy3ERPzZkcoCnRwrw=
+github.com/tkw1536/stringreader v0.0.4/go.mod h1:uJ1R7scZeK2U4N5dM0AJRTcmzag/Xoz+bccB4YIN69Q=
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 h1:7I4JAnoQBe7ZtJcBaYHi5UtiO8tQHbUSXxL+pnGRANg=
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
 golang.org/x/net v0.0.0-20210226172049-e18ecbb05110/go.mod h1:m0MpNAwzfU5UDzcl9v0D8zg8gWTRqZa9RBIspLL5mdg=
