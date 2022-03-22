@@ -8,6 +8,7 @@ import (
 	"github.com/kevinburke/ssh_config"
 	"github.com/tkw1536/sshost/internal/pkg/closer"
 	"github.com/tkw1536/sshost/internal/pkg/host"
+	"github.com/tkw1536/sshost/internal/pkg/source"
 	"github.com/tkw1536/stringreader"
 	"golang.org/x/crypto/ssh"
 )
@@ -21,6 +22,8 @@ type Environment struct {
 	// If both are non-nil, the behavior is undefined.
 	Settings *ssh_config.UserSettings
 	Config   *ssh_config.Config
+
+	// TODO: give the environment a better abstraction!
 
 	// Strict is used to enable strict validation of settings.
 	Strict bool
@@ -96,10 +99,10 @@ func (env *Environment) NewProfile(alias string) (profile *Profile, err error) {
 
 func (env Environment) source(alias string) stringreader.Source {
 	if env.Config != nil {
-		return NewConfigSource(env.Config, alias)
+		return source.FromConfig(env.Config, alias)
 	}
 	if env.Settings != nil {
-		return NewUserSettingsSource(env.Settings, alias)
+		return source.FromUserSettings(env.Settings, alias)
 	}
 
 	panic("env.Source: env.settings and env.config are nil")
