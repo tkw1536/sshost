@@ -24,6 +24,7 @@ func (ex Expander) ExpandToken(r rune) (string, error) {
 	switch r {
 	case '%':
 		return "%", nil
+	// TODO: Support more tokens here!
 	default:
 		return "", fmt.Errorf("encounted unknown/unimplemented '%%' token: %q", r)
 	}
