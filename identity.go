@@ -4,7 +4,7 @@ import (
 	"github.com/tkw1536/sshost/internal/pkg/expand"
 )
 
-func (profile Profile) Expander() expand.Expander {
+func (profile Profile) expander() expand.Expander {
 	return expand.Expander{
 		Getenv: profile.env.getenv,
 	}
@@ -16,14 +16,10 @@ var identityFileFlags = expand.Flags{
 	Tokens:      "%CdhikLlnpru",
 }
 
-func (profile Profile) identityFileExpander() expand.Expander {
-	return profile.Expander()
-}
-
 // IdentityFile returns the IdentityFile being used by this profile
 func (profile Profile) IdentityFile() []string {
 	result := make([]string, 0, len(profile.config.IdentityFile))
-	ex := profile.identityFileExpander()
+	ex := profile.expander()
 	for _, id := range profile.config.IdentityFile {
 		name, err := ex.Expand(id, identityFileFlags)
 		if err != nil {
@@ -40,10 +36,6 @@ var identityAgentFlags = expand.Flags{
 	Tokens:      "%CdhikLlnpru",
 }
 
-func (profile Profile) identityAgentExpander() expand.Expander {
-	return profile.Expander()
-}
-
 // IdentityAgent returns the identity agent to connect to
 func (profile Profile) IdentityAgent() string {
 	agent := profile.config.IdentityAgent
@@ -58,7 +50,7 @@ func (profile Profile) IdentityAgent() string {
 		return profile.env.getenv(agent[1:])
 	}
 
-	ex := profile.identityAgentExpander()
+	ex := profile.expander()
 	agent, _ = ex.Expand(agent, identityAgentFlags)
 	return agent
 }
