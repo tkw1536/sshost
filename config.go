@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tkw1536/sshost/pkg/host"
+	"github.com/tkw1536/sshost/internal/pkg/host"
 	"github.com/tkw1536/stringreader"
 )
 

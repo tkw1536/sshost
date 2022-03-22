@@ -8,7 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/tkw1536/sshost/pkg/closer"
+	"github.com/tkw1536/sshost/internal/pkg/closer"
 
 	"golang.org/x/crypto/ssh"
 )

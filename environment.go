@@ -6,8 +6,8 @@ import (
 	"os/user"
 
 	"github.com/kevinburke/ssh_config"
-	"github.com/tkw1536/sshost/pkg/closer"
-	"github.com/tkw1536/sshost/pkg/host"
+	"github.com/tkw1536/sshost/internal/pkg/closer"
+	"github.com/tkw1536/sshost/internal/pkg/host"
 	"github.com/tkw1536/stringreader"
 	"golang.org/x/crypto/ssh"
 )

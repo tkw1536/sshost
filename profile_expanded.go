@@ -1,7 +1,7 @@
 package sshost
 
 import (
-	"github.com/tkw1536/sshost/pkg/expand"
+	"github.com/tkw1536/sshost/internal/pkg/expand"
 )
 
 func (profile Profile) Expander() expand.Expander {
