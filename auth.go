@@ -105,18 +105,17 @@ func (m AuthEnv) Methods(methods string, profile Profile) []ssh.AuthMethod {
 func (m AuthEnv) Method(method AuthMethod, profile Profile) []ssh.AuthMethod {
 	switch method {
 	case PublicKey:
-		return m.PublicKey(profile)
+		return m.mPublicKey(profile)
 	case KeyboardInteractive:
-		return m.KeyboardInteractive(profile)
+		return m.mKeyboardInteractive(profile)
 	case Password:
-		return m.Password(profile)
+		return m.mPassword(profile)
 	}
 	return nil
 }
 
-// Password returns the password authentication method.
-// When the method is not enabled, returns nil.
-func (m AuthEnv) Password(profile Profile) []ssh.AuthMethod {
+// mPassword returns the password authentication method.
+func (m AuthEnv) mPassword(profile Profile) []ssh.AuthMethod {
 	if !profile.config.PasswordAuthentication {
 		return nil
 	}
@@ -139,7 +138,8 @@ func (m AuthEnv) passwordCallback() (secret string, err error) {
 	return m.readClosed()
 }
 
-func (m AuthEnv) KeyboardInteractive(profile Profile) []ssh.AuthMethod {
+// mKeyboardInteractive returns the keyboard-interactive authentication method.
+func (m AuthEnv) mKeyboardInteractive(profile Profile) []ssh.AuthMethod {
 	if !profile.config.KbdInteractiveAuthentication {
 		return nil
 	}
@@ -169,7 +169,8 @@ func (m AuthEnv) keyboardInteractiveCallback(user, instruction string, questions
 	return answers, nil
 }
 
-func (m AuthEnv) PublicKey(profile Profile) []ssh.AuthMethod {
+// mPublicKey returns the public-key authentication method
+func (m AuthEnv) mPublicKey(profile Profile) []ssh.AuthMethod {
 	methods := make([]ssh.AuthMethod, 0)
 	if agent := m.publicKeyAgent(profile); agent != nil {
 		methods = append(methods, agent)

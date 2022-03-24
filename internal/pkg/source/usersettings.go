@@ -5,26 +5,44 @@ import (
 	"github.com/tkw1536/stringreader"
 )
 
-// FromUserSettings creates a new source for the provided UserSettings and alias
-func FromUserSettings(settings *ssh_config.UserSettings, alias string) stringreader.Source {
-	return userSettingsSource{settings: settings, alias: alias}
+func FromUserSettings(settings *ssh_config.UserSettings) Source {
+	return sshUserSettings{settings: settings}
 }
 
-type userSettingsSource struct {
+type sshUserSettings struct {
 	settings *ssh_config.UserSettings
+
+	aliasSet bool
 	alias    string
 }
 
-func (src userSettingsSource) Get(key string) (value string, ok bool) {
-	value, err := src.settings.GetStrict(src.alias, key)
+// isSSHConfig indicates that sshUserSettings is an ssh source
+func (sshUserSettings) isSSHSource() {}
+
+func (settings sshUserSettings) Alias(alias string) stringreader.Source {
+	settings.alias = alias
+	settings.aliasSet = true
+	return settings
+}
+
+func (settings sshUserSettings) Get(key string) (value string, ok bool) {
+	if !settings.aliasSet {
+		return "", false
+	}
+
+	value, err := settings.settings.GetStrict(settings.alias, key)
 	if err != nil {
 		return "", false
 	}
 	return value, true
 }
 
-func (src userSettingsSource) GetAll(key string) (value []string, ok bool) {
-	value, err := src.settings.GetAllStrict(src.alias, key)
+func (settings sshUserSettings) GetAll(key string) (value []string, ok bool) {
+	if !settings.aliasSet {
+		return nil, false
+	}
+
+	value, err := settings.settings.GetAllStrict(settings.alias, key)
 	if err != nil {
 		return nil, false
 	}
