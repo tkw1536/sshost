@@ -26,7 +26,7 @@ func (config sshConfig) Alias(alias string) stringreader.Source {
 	return config
 }
 
-func (config sshConfig) Get(key string) (value string, ok bool) {
+func (config sshConfig) Lookup(key string) (value string, ok bool) {
 	if !config.aliasSet {
 		return "", false
 	}
@@ -38,7 +38,7 @@ func (config sshConfig) Get(key string) (value string, ok bool) {
 	return value, true
 }
 
-func (config sshConfig) GetAll(key string) (value []string, ok bool) {
+func (config sshConfig) LookupAll(key string) (value []string, ok bool) {
 	if !config.aliasSet {
 		return nil, false
 	}

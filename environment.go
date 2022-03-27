@@ -2,10 +2,7 @@ package sshost
 
 import (
 	"context"
-	"os"
-	"os/user"
 
-	"github.com/kevinburke/ssh_config"
 	"github.com/tkw1536/sshost/internal/pkg/closer"
 	"github.com/tkw1536/sshost/internal/pkg/host"
 	"github.com/tkw1536/sshost/internal/pkg/source"
@@ -17,8 +14,6 @@ type Environment struct {
 	// Source is a source of configuration values
 	Source source.Source
 
-	// TODO: give the environment a better abstraction!
-
 	// Strict is used to enable strict validation of settings.
 	Strict bool
 
@@ -28,22 +23,6 @@ type Environment struct {
 
 	// Variables contains values of system environment variables
 	Variables func(name string) string
-}
-
-func NewDefaultEnvironment() (*Environment, error) {
-	user, err := user.Current()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Environment{
-		Source: source.FromUserSettings(ssh_config.DefaultUserSettings),
-		Strict: false,
-		Defaults: Defaults{
-			Username: user.Username,
-		},
-		Variables: os.Getenv,
-	}, nil
 }
 
 // getenv returns ctx.Variables, protected against Variables being nil

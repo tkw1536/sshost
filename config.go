@@ -37,8 +37,6 @@ type Config struct {
 	ServerAliveCountMax uint64        `config:"ServerAliveCountMax" type:"uint"`
 	ServerAliveInterval time.Duration `config:"ServerAliveInterval" type:"seconds"`
 
-	// TODO: Parse & validate the below
-
 	PreferredAuthentications string `config:"PreferredAuthentications" type:"string"`
 
 	GSSAPIAuthentication             bool `config:"GSSAPIAuthentication" type:"yesno"`
@@ -137,7 +135,7 @@ func NewConfig(source stringreader.Source, host host.Host, dflts Defaults) (cfg 
 	if err = checkUnsupportedConfig(source); err != nil {
 		return
 	}
-	if err = configMarshal.UnmarshalContext(&cfg, source, dflts.Data()); err != nil {
+	if err = configMarshal.UnmarshalState(&cfg, source, dflts.Data()); err != nil {
 		return
 	}
 	if err = cfg.UpdateHost(host); err != nil {
@@ -169,14 +167,14 @@ func init() {
 	configMarshal.ParserTag = "type"
 	configMarshal.DefaultParser = ""
 
-	configMarshal.RegisterSingleParser("string", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+	configMarshal.RegisterSingleParser("string", func(value string, ok bool, ctx stringreader.UnmarshalContext) (interface{}, error) {
 		if !ok || value == "" {
 			return ctx.Get("default"), nil
 		}
 		return value, nil
 	})
 
-	configMarshal.RegisterSingleParser("stringslice", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+	configMarshal.RegisterSingleParser("stringslice", func(value string, ok bool, ctx stringreader.UnmarshalContext) (interface{}, error) {
 		if !ok {
 			return ctx.Get("default"), nil
 		}
@@ -185,7 +183,7 @@ func init() {
 		}
 		return strings.Split(value, ","), nil
 	})
-	configMarshal.RegisterMultiParser("stringslices", func(values []string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+	configMarshal.RegisterMultiParser("stringslices", func(values []string, ok bool, ctx stringreader.UnmarshalContext) (interface{}, error) {
 		if !ok {
 			return ctx.Get("default"), nil
 		}
@@ -213,21 +211,21 @@ func init() {
 		return results, nil
 	})
 
-	configMarshal.RegisterSingleParser("int", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+	configMarshal.RegisterSingleParser("int", func(value string, ok bool, ctx stringreader.UnmarshalContext) (interface{}, error) {
 		if !ok || value == "" {
 			return ctx.Get("default"), nil
 		}
 		return strconv.ParseInt(value, ctx.Get("base").(int), ctx.Get("bits").(int))
 	})
 
-	configMarshal.RegisterSingleParser("uint", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+	configMarshal.RegisterSingleParser("uint", func(value string, ok bool, ctx stringreader.UnmarshalContext) (interface{}, error) {
 		if !ok || value == "" {
 			return ctx.Get("default"), nil
 		}
 		return strconv.ParseUint(value, ctx.Get("base").(int), ctx.Get("bits").(int))
 	})
 
-	configMarshal.RegisterSingleParser("seconds", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+	configMarshal.RegisterSingleParser("seconds", func(value string, ok bool, ctx stringreader.UnmarshalContext) (interface{}, error) {
 		if !ok || value == "" {
 			return ctx.Get("default"), nil
 		}
@@ -238,7 +236,7 @@ func init() {
 		return time.Duration(s) * time.Second, nil
 	})
 
-	configMarshal.RegisterSingleParser("yesno", func(value string, ok bool, ctx stringreader.ParsingContext) (interface{}, error) {
+	configMarshal.RegisterSingleParser("yesno", func(value string, ok bool, ctx stringreader.UnmarshalContext) (interface{}, error) {
 		if !ok || value == "" {
 			return ctx.Get("default"), nil
 		}

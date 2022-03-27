@@ -58,6 +58,8 @@ func (profile *Profile) Dial(proxy *ssh.Client, ctx context.Context) (net.Conn, 
 		return nil, nil, ErrContextClosed
 	}
 
+	// TODO: cleanup this code!
+
 	// create a stack and current connection
 	// used to establish the connection and register all the closers!
 	stack := closer.NewStack()

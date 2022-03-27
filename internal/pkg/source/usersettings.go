@@ -25,7 +25,7 @@ func (settings sshUserSettings) Alias(alias string) stringreader.Source {
 	return settings
 }
 
-func (settings sshUserSettings) Get(key string) (value string, ok bool) {
+func (settings sshUserSettings) Lookup(key string) (value string, ok bool) {
 	if !settings.aliasSet {
 		return "", false
 	}
@@ -37,7 +37,7 @@ func (settings sshUserSettings) Get(key string) (value string, ok bool) {
 	return value, true
 }
 
-func (settings sshUserSettings) GetAll(key string) (value []string, ok bool) {
+func (settings sshUserSettings) LookupAll(key string) (value []string, ok bool) {
 	if !settings.aliasSet {
 		return nil, false
 	}

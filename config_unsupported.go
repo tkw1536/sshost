@@ -88,7 +88,7 @@ var unsupportedFlags = []string{
 func checkUnsupportedConfig(source stringreader.Source) error {
 	// check for unsupported flags (options that must be "no")
 	for _, setting := range unsupportedFlags {
-		value, ok := source.Get(setting)
+		value, ok := source.Lookup(setting)
 		if ok && value == "yes" {
 			return ErrUnsupportedConfig{Setting: setting, Value: "yes", Specific: true}
 		}
@@ -96,7 +96,7 @@ func checkUnsupportedConfig(source stringreader.Source) error {
 
 	// check for unsupported configs
 	for _, setting := range unsupportedConfigs {
-		value, ok := source.Get(setting)
+		value, ok := source.Lookup(setting)
 		if ok && value != "" {
 			return ErrUnsupportedConfig{Setting: setting, Value: value, Specific: false}
 		}
